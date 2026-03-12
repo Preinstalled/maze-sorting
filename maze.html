@@ -1,23 +1,23 @@
+```html
 <!DOCTYPE html>
 <html>
 <head>
-<title>Maze Algorithm Comparison</title>
+  <title>Maze Algorithm Comparison</title>
 
-<style>
-body{
-background:#111;
-display:flex;
-justify-content:center;
-align-items:center;
-height:100vh;
-margin:0;
-}
+  <style>
+    body {
+      background: #111;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
 
-canvas{
-border:2px solid #444;
-}
-</style>
-
+    canvas {
+      border: 2px solid #444;
+    }
+  </style>
 </head>
 
 <body>
@@ -27,15 +27,15 @@ border:2px solid #444;
 <script>
 
 let bfsStats = {
-visited:0,
-pathLength:0,
-time:0
+  visited: 0,
+  pathLength: 0,
+  time: 0
 };
 
 let dfsStats = {
-visited:0,
-pathLength:0,
-time:0
+  visited: 0,
+  pathLength: 0,
+  time: 0
 };
 
 const canvas = document.getElementById("canvas");
@@ -51,298 +51,272 @@ const CELL = WIDTH / COLS;
 
 let maze = [];
 
-const start=[1,1];
-const end=[COLS-2,ROWS-2];
+const start = [1, 1];
+const end = [COLS - 2, ROWS - 2];
 
-let bfsVisited=new Set();
-let dfsVisited=new Set();
+let bfsVisited = new Set();
+let dfsVisited = new Set();
 
-let bfsPath=new Set();
-let dfsPath=new Set();
+let bfsPath = new Set();
+let dfsPath = new Set();
 
-function key(x,y){
-return x+","+y;
+function key(x, y) {
+  return x + "," + y;
 }
 
-function initMaze(){
+function initMaze() {
 
-maze=[];
+  maze = [];
 
-for(let y=0;y<ROWS;y++){
+  for (let y = 0; y < ROWS; y++) {
 
-let row=[];
+    let row = [];
 
-for(let x=0;x<COLS;x++){
-row.push(1);
+    for (let x = 0; x < COLS; x++) {
+      row.push(1);
+    }
+
+    maze.push(row);
+  }
 }
 
-maze.push(row);
+function drawMaze(offsetX, visited, path, colorVisit) {
 
+  for (let y = 0; y < ROWS; y++) {
+
+    for (let x = 0; x < COLS; x++) {
+
+      let color;
+
+      if (x === start[0] && y === start[1]) color = "lime";
+      else if (x === end[0] && y === end[1]) color = "red";
+      else if (path.has(key(x, y))) color = "yellow";
+      else if (visited.has(key(x, y))) color = colorVisit;
+      else if (maze[y][x] === 1) color = "black";
+      else color = "rgb(200,200,200)";
+
+      ctx.fillStyle = color;
+
+      ctx.fillRect(offsetX + x * CELL, y * CELL, CELL, CELL);
+    }
+  }
 }
 
+function draw() {
+
+  ctx.fillStyle = "rgb(30,30,30)";
+  ctx.fillRect(0, 0, 1600, 800);
+
+  drawMaze(0, bfsVisited, bfsPath, "rgb(50,150,255)");
+  drawMaze(800, dfsVisited, dfsPath, "rgb(255,120,50)");
+
+  ctx.fillStyle = "white";
+  ctx.font = "16px Arial";
+
+  ctx.fillText("BFS Stats", 200, 740);
+  ctx.fillText("Visited: " + bfsStats.visited, 200, 760);
+  ctx.fillText("Path: " + bfsStats.pathLength, 200, 780);
+  ctx.fillText("Time: " + bfsStats.time + " ms", 200, 800);
+
+  ctx.fillText("DFS Stats", 1000, 740);
+  ctx.fillText("Visited: " + dfsStats.visited, 1000, 760);
+  ctx.fillText("Path: " + dfsStats.pathLength, 1000, 780);
+  ctx.fillText("Time: " + dfsStats.time + " ms", 1000, 800);
 }
 
-function drawMaze(offsetX,visited,path,colorVisit){
+function generateMaze() {
 
-for(let y=0;y<ROWS;y++){
+  initMaze();
 
-for(let x=0;x<COLS;x++){
+  let stack = [[1, 1]];
 
-let color;
+  while (stack.length) {
 
-if(x===start[0] && y===start[1]) color="lime";
-else if(x===end[0] && y===end[1]) color="red";
-else if(path.has(key(x,y))) color="yellow";
-else if(visited.has(key(x,y))) color=colorVisit;
-else if(maze[y][x]===1) color="black";
-else color="rgb(200,200,200)";
+    let [x, y] = stack[stack.length - 1];
+    maze[y][x] = 0;
 
-ctx.fillStyle=color;
+    let neighbors = [];
 
-ctx.fillRect(offsetX+x*CELL,y*CELL,CELL,CELL);
+    [[2,0],[-2,0],[0,2],[0,-2]].forEach(([dx,dy]) => {
 
+      let nx = x + dx;
+      let ny = y + dy;
+
+      if (nx > 0 && nx < COLS - 1 && ny > 0 && ny < ROWS - 1 && maze[ny][nx] === 1) {
+        neighbors.push([nx, ny, dx, dy]);
+      }
+
+    });
+
+    if (neighbors.length) {
+
+      let n = neighbors[Math.floor(Math.random() * neighbors.length)];
+      let [nx, ny, dx, dy] = n;
+
+      maze[y + dy / 2][x + dx / 2] = 0;
+
+      stack.push([nx, ny]);
+
+    } else {
+
+      stack.pop();
+
+    }
+  }
+
+  maze[start[1]][start[0]] = 0;
+  maze[end[1]][end[0]] = 0;
 }
 
+function bfs() {
+
+  let startTime = performance.now();
+
+  let queue = [start];
+  let parent = {};
+
+  parent[key(start[0], start[1])] = null;
+
+  function step() {
+
+    if (queue.length === 0) return;
+
+    let [x, y] = queue.shift();
+
+    if (x === end[0] && y === end[1]) {
+
+      let cur = key(end[0], end[1]);
+      let length = 0;
+
+      while (cur !== null) {
+        bfsPath.add(cur);
+        cur = parent[cur];
+        length++;
+      }
+
+      bfsStats.pathLength = length;
+      bfsStats.time = (performance.now() - startTime).toFixed(2);
+
+      draw();
+      return;
+    }
+
+    [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy]) => {
+
+      let nx = x + dx;
+      let ny = y + dy;
+
+      if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS) {
+
+        if (maze[ny][nx] === 0 && !(key(nx,ny) in parent)) {
+
+          parent[key(nx,ny)] = key(x,y);
+          queue.push([nx,ny]);
+
+          bfsVisited.add(key(nx,ny));
+          bfsStats.visited++;
+        }
+      }
+
+    });
+
+    draw();
+    requestAnimationFrame(step);
+  }
+
+  step();
 }
 
+function dfs() {
+
+  let stack = [start];
+  let parent = {};
+
+  let startTime = performance.now();
+
+  parent[key(start[0], start[1])] = null;
+
+  function step() {
+
+    if (stack.length === 0) return;
+
+    let [x, y] = stack.pop();
+
+    if (x === end[0] && y === end[1]) {
+
+      let cur = key(end[0], end[1]);
+      let length = 0;
+
+      while (cur !== null) {
+        dfsPath.add(cur);
+        cur = parent[cur];
+        length++;
+      }
+
+      dfsStats.pathLength = length;
+      dfsStats.time = (performance.now() - startTime).toFixed(2);
+
+      draw();
+      return;
+    }
+
+    [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy]) => {
+
+      let nx = x + dx;
+      let ny = y + dy;
+
+      if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS) {
+
+        if (maze[ny][nx] === 0 && !(key(nx,ny) in parent)) {
+
+          parent[key(nx,ny)] = key(x,y);
+          stack.push([nx,ny]);
+
+          dfsVisited.add(key(nx,ny));
+          dfsStats.visited++;
+        }
+      }
+
+    });
+
+    draw();
+    requestAnimationFrame(step);
+  }
+
+  step();
 }
 
-function draw(){
+document.addEventListener("keydown", (e) => {
 
-ctx.fillStyle="rgb(30,30,30)";
-ctx.fillRect(0,0,1600,800);
+  if (e.code === "Space") {
 
-drawMaze(0,bfsVisited,bfsPath,"rgb(50,150,255)");
-drawMaze(800,dfsVisited,dfsPath,"rgb(255,120,50)");
+    bfsVisited.clear();
+    dfsVisited.clear();
 
-ctx.fillStyle="white";
-ctx.font="16px Arial";
+    bfsPath.clear();
+    dfsPath.clear();
 
-ctx.fillText("BFS Stats",200,740);
-ctx.fillText("Visited: "+bfsStats.visited,200,760);
-ctx.fillText("Path: "+bfsStats.pathLength,200,780);
-ctx.fillText("Time: "+bfsStats.time+" ms",200,800);
+    bfsStats = {visited:0,pathLength:0,time:0};
+    dfsStats = {visited:0,pathLength:0,time:0};
 
-ctx.fillText("DFS Stats",1000,740);
-ctx.fillText("Visited: "+dfsStats.visited,1000,760);
-ctx.fillText("Path: "+dfsStats.pathLength,1000,780);
-ctx.fillText("Time: "+dfsStats.time+" ms",1000,800);
+    bfs();
+    dfs();
+  }
 
-}
+  if (e.key === "r") {
 
-function generateMaze(){
+    bfsVisited.clear();
+    dfsVisited.clear();
 
-initMaze();
+    bfsPath.clear();
+    dfsPath.clear();
 
-let stack=[[1,1]];
+    bfsStats = {visited:0,pathLength:0,time:0};
+    dfsStats = {visited:0,pathLength:0,time:0};
 
-while(stack.length){
-
-let [x,y]=stack[stack.length-1];
-maze[y][x]=0;
-
-let neighbors=[];
-
-[[2,0],[-2,0],[0,2],[0,-2]].forEach(([dx,dy])=>{
-
-let nx=x+dx;
-let ny=y+dy;
-
-if(nx>0 && nx<COLS-1 && ny>0 && ny<ROWS-1 && maze[ny][nx]===1){
-
-neighbors.push([nx,ny,dx,dy]);
-
-}
-
-});
-
-if(neighbors.length){
-
-let n=neighbors[Math.floor(Math.random()*neighbors.length)];
-let [nx,ny,dx,dy]=n;
-
-maze[y+dy/2][x+dx/2]=0;
-
-stack.push([nx,ny]);
-
-}else{
-
-stack.pop();
-
-}
-
-}
-
-maze[start[1]][start[0]]=0;
-maze[end[1]][end[0]]=0;
-
-}
-
-function bfs(){
-
-let startTime=performance.now();
-
-let queue=[start];
-let parent={};
-
-parent[key(start[0],start[1])]=null;
-
-function step(){
-
-if(queue.length===0)return;
-
-let [x,y]=queue.shift();
-
-if(x===end[0] && y===end[1]){
-
-let cur=key(end[0],end[1]);
-let length=0;
-
-while(cur!==null){
-
-bfsPath.add(cur);
-cur=parent[cur];
-length++;
-
-}
-
-bfsStats.pathLength=length;
-bfsStats.time=(performance.now()-startTime).toFixed(2);
-
-draw();
-return;
-
-}
-
-[[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{
-
-let nx=x+dx;
-let ny=y+dy;
-
-if(nx>=0 && nx<COLS && ny>=0 && ny<ROWS){
-
-if(maze[ny][nx]===0 && !(key(nx,ny) in parent)){
-
-parent[key(nx,ny)]=key(x,y);
-queue.push([nx,ny]);
-
-bfsVisited.add(key(nx,ny));
-bfsStats.visited++;
-
-}
-
-}
-
-});
-
-draw();
-requestAnimationFrame(step);
-
-}
-
-step();
-
-}
-
-function dfs(){
-
-let stack=[start];
-let parent={};
-
-let startTime=performance.now();
-
-parent[key(start[0],start[1])]=null;
-
-function step(){
-
-if(stack.length===0)return;
-
-let [x,y]=stack.pop();
-
-if(x===end[0] && y===end[1]){
-
-let cur=key(end[0],end[1]);
-let length=0;
-
-while(cur!==null){
-
-dfsPath.add(cur);
-cur=parent[cur];
-length++;
-
-}
-
-dfsStats.pathLength=length;
-dfsStats.time=(performance.now()-startTime).toFixed(2);
-
-draw();
-return;
-
-}
-
-[[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{
-
-let nx=x+dx;
-let ny=y+dy;
-
-if(nx>=0 && nx<COLS && ny>=0 && ny<ROWS){
-
-if(maze[ny][nx]===0 && !(key(nx,ny) in parent)){
-
-parent[key(nx,ny)]=key(x,y);
-stack.push([nx,ny]);
-
-dfsVisited.add(key(nx,ny));
-dfsStats.visited++;
-
-}
-
-}
-
-});
-
-draw();
-requestAnimationFrame(step);
-
-}
-
-step();
-
-}
-
-document.addEventListener("keydown",(e)=>{
-
-if(e.code==="Space"){
-
-bfsVisited.clear();
-dfsVisited.clear();
-
-bfsPath.clear();
-dfsPath.clear();
-
-bfsStats={visited:0,pathLength:0,time:0};
-dfsStats={visited:0,pathLength:0,time:0};
-
-bfs();
-dfs();
-
-}
-
-if(e.key==="r"){
-
-bfsVisited.clear();
-dfsVisited.clear();
-
-bfsPath.clear();
-dfsPath.clear();
-
-bfsStats={visited:0,pathLength:0,time:0};
-dfsStats={visited:0,pathLength:0,time:0};
-
-generateMaze();
-draw();
-
-}
+    generateMaze();
+    draw();
+  }
 
 });
 
@@ -353,3 +327,4 @@ draw();
 
 </body>
 </html>
+```
