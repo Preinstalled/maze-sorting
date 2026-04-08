@@ -18,16 +18,14 @@ canvas{
 </head>
 
 <body>
-
 <canvas id="canvas" width="1800" height="900"></canvas>
 
 <script>
-
 const canvas=document.getElementById("canvas");
 const ctx=canvas.getContext("2d");
 
-const ROWS=51;
-const COLS=51;
+const ROWS=81;
+const COLS=81;
 const CELL=Math.min(600/COLS,300/ROWS);
 
 let maze=[];
@@ -38,8 +36,9 @@ function key(x,y){return x+","+y;}
 
 let bfsVisited=new Set(), dfsVisited=new Set(), biVisited=new Set(), dijkstraVisited=new Set(), aStarVisited=new Set(), bellmanVisited=new Set();
 let bfsPath=new Set(), dfsPath=new Set(), biPath=new Set(), dijkstraPath=new Set(), aStarPath=new Set(), bellmanPath=new Set();
+let ffVisited=new Set(), ekVisited=new Set(), ffPath=new Set(), ekPath=new Set();
 
-let bfsStats, dfsStats, biStats, dijkstraStats, aStarStats, bellmanStats;
+let bfsStats, dfsStats, biStats, dijkstraStats, aStarStats, bellmanStats, ffStats, ekStats;
 
 function resetStats(){
     bfsStats={visited:0,pathLength:0,time:0};
@@ -48,11 +47,13 @@ function resetStats(){
     dijkstraStats={visited:0,pathLength:0,time:0};
     aStarStats={visited:0,pathLength:0,time:0};
     bellmanStats={visited:0,pathLength:0,time:0};
+    ffStats={visited:0,maxFlow:0,time:0};
+    ekStats={visited:0,maxFlow:0,time:0};
 }
 
 function clearAll(){
-    [bfsVisited,dfsVisited,biVisited,dijkstraVisited,aStarVisited,bellmanVisited].forEach(s=>s.clear());
-    [bfsPath,dfsPath,biPath,dijkstraPath,aStarPath,bellmanPath].forEach(s=>s.clear());
+    [bfsVisited,dfsVisited,biVisited,dijkstraVisited,aStarVisited,bellmanVisited,ffVisited,ekVisited].forEach(s=>s.clear());
+    [bfsPath,dfsPath,biPath,dijkstraPath,aStarPath,bellmanPath,ffPath,ekPath].forEach(s=>s.clear());
     resetStats();
     draw();
 }
@@ -118,6 +119,8 @@ function draw(){
     drawMaze(0,300,biVisited,biPath,"rgb(180,100,255)");
     drawMaze(600,300,dijkstraVisited,dijkstraPath,"rgb(100,255,150)");
     drawMaze(1200,300,bellmanVisited,bellmanPath,"rgb(255,100,100)");
+    drawMaze(0,600,ffVisited,ffPath,"rgb(0,200,200)");
+    drawMaze(600,600,ekVisited,ekPath,"rgb(255,0,255)");
 
     ctx.fillStyle="white";
     ctx.font="14px Arial";
@@ -129,8 +132,12 @@ function draw(){
     ctx.fillText(`Bi V:${biStats.visited} P:${biStats.pathLength}`,20,320);
     ctx.fillText(`Dij V:${dijkstraStats.visited} P:${dijkstraStats.pathLength}`,620,320);
     ctx.fillText(`Bell V:${bellmanStats.visited} P:${bellmanStats.pathLength}`,1220,320);
+
+    ctx.fillText(`FF V:${ffStats.visited} F:${ffStats.maxFlow}`,20,620);
+    ctx.fillText(`EK V:${ekStats.visited} F:${ekStats.maxFlow}`,620,620);
 }
 
+// --- BFS ---
 function bfs(){
     let t=performance.now();
     let q=[start],p={}; p[key(...start)]=null;
@@ -160,6 +167,7 @@ function bfs(){
     step();
 }
 
+// --- DFS ---
 function dfs(){
     let t=performance.now();
     let s=[start],p={}; p[key(...start)]=null;
@@ -189,6 +197,7 @@ function dfs(){
     step();
 }
 
+// --- A* ---
 function aStar(){
     let t=performance.now();
     let open=[[0,start]],g={},p={};
@@ -227,6 +236,7 @@ function aStar(){
     step();
 }
 
+// --- Bi-BFS ---
 function biBfs(){
     let t=performance.now();
     let qs=[start],qe=[end],ps={},pe={};
@@ -269,6 +279,7 @@ function biBfs(){
     step();
 }
 
+// --- Dijkstra ---
 function dijkstra(){
     let t=performance.now();
     let dist={},p={},pq=[[0,start]];
@@ -305,6 +316,7 @@ function dijkstra(){
     step();
 }
 
+// --- Bellman-Ford ---
 function bellmanFord(){
     let t=performance.now();
     let dist={},p={};
@@ -344,8 +356,132 @@ function bellmanFord(){
     draw();
 }
 
-document.addEventListener("keydown",(e)=>{
+// --- Ford-Fulkerson ---
+function buildGraph() {
+    let graph = {};
+    for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+            if (maze[y][x] === 0) {
+                let k = key(x, y);
+                graph[k] = {};
+                for (let [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+                    let nx = x + dx, ny = y + dy;
+                    if (nx >= 0 && ny >= 0 && nx < COLS && ny < ROWS && maze[ny][nx] === 0) {
+                        graph[k][key(nx, ny)] = 1;
+                    }
+                }
+            }
+        }
+    }
+    return graph;
+}
 
+function fordFulkerson() {
+    let t = performance.now();
+    let graph = buildGraph();
+    let source = key(...start), sink = key(...end);
+    let flow = 0;
+    let residual = JSON.parse(JSON.stringify(graph));
+
+    function dfsFF(u, minCap, visited) {
+        if (u === sink) return minCap;
+        visited.add(u);
+        for (let v in residual[u]) {
+            if (residual[u][v] > 0 && !visited.has(v)) {
+                let pushed = dfsFF(v, Math.min(minCap, residual[u][v]), visited);
+                if (pushed > 0) {
+                    residual[u][v] -= pushed;
+                    residual[v] = residual[v] || {};
+                    residual[v][u] = (residual[v][u] || 0) + pushed;
+                    ffVisited.add(v);
+                    ffStats.visited++;
+                    return pushed;
+                }
+            }
+        }
+        return 0;
+    }
+
+    function step() {
+        let visited = new Set();
+        let pushed = dfsFF(source, Infinity, visited);
+        if (pushed > 0) {
+            flow += pushed;
+            ffPath = new Set([...visited]);
+            draw();
+            requestAnimationFrame(step);
+        } else {
+            ffStats.maxFlow = flow;
+            ffStats.time = (performance.now() - t).toFixed(2);
+            draw();
+        }
+    }
+    step();
+}
+
+// --- Edmonds-Karp ---
+function edmondsKarp() {
+    let t = performance.now();
+    let graph = buildGraph();
+    let source = key(...start), sink = key(...end);
+    let flow = 0;
+    let residual = JSON.parse(JSON.stringify(graph));
+
+    function bfsEK() {
+        let q = [source];
+        let parent = {};
+        parent[source] = null;
+        while (q.length) {
+            let u = q.shift();
+            for (let v in residual[u]) {
+                if (residual[u][v] > 0 && !(v in parent)) {
+                    parent[v] = u;
+                    ekVisited.add(v);
+                    ekStats.visited++;
+                    if (v === sink) return parent;
+                    q.push(v);
+                }
+            }
+        }
+        return null;
+    }
+
+    function step() {
+        let parent = bfsEK();
+        if (parent) {
+            let path = [];
+            let cur = sink;
+            let minCap = Infinity;
+            while (cur !== source) {
+                let prev = parent[cur];
+                minCap = Math.min(minCap, residual[prev][cur]);
+                path.push(cur);
+                cur = prev;
+            }
+            path.push(source);
+            path.reverse();
+
+            for (let i = 0; i < path.length - 1; i++) {
+                let u = path[i], v = path[i+1];
+                residual[u][v] -= minCap;
+                residual[v] = residual[v] || {};
+                residual[v][u] = (residual[v][u] || 0) + minCap;
+            }
+
+            flow += minCap;
+            ekPath = new Set(path);
+            draw();
+            requestAnimationFrame(step);
+        } else {
+            ekStats.maxFlow = flow;
+            ekStats.time = (performance.now() - t).toFixed(2);
+            draw();
+        }
+    }
+    step();
+}
+
+document.addEventListener("keydown",(e)=>{
     if(e.code==="Space") clearAll();
 
     if(e.key==="1") bfs();
@@ -354,19 +490,18 @@ document.addEventListener("keydown",(e)=>{
     if(e.key==="4") dijkstra();
     if(e.key==="5") aStar();
     if(e.key==="6") bellmanFord();
+    if(e.key==="7") fordFulkerson();
+    if(e.key==="8") edmondsKarp();
 
     if(e.key==="r"){
         generateMaze();
         clearAll();
     }
-
 });
 
 resetStats();
 generateMaze();
 draw();
-
 </script>
-
 </body>
 </html>
